@@ -8,7 +8,7 @@ let blocker: PuppeteerBlocker | null = null;
 export async function initBrowser(): Promise<Browser> {
   if (!browserInstance) {
     browserInstance = await puppeteer.launch({
-      headless: "new",
+      headless: true,
       args: config.browserArgs,
       defaultViewport: {
         width: 1440,
