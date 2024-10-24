@@ -1,0 +1,22 @@
+{
+  "root": true,
+  "ignorePatterns": ["node_modules/", "dist/"],
+  "plugins": ["@typescript-eslint"],
+  "extends": ["plugin:@typescript-eslint/recommended", "eslint:recommended"],
+  "parser": "@typescript-eslint/parser",
+  "parserOptions": {
+    "ecmaVersion": 12,
+    "sourceType": "module"
+  },
+  "env": {
+    "node": true
+  },
+  "globals": {
+    "URL": true,
+    "document": false
+  },
+  "rules": {
+    "no-console": "off",
+    "@typescript-eslint/no-unused-vars": "warn"
+  }
+}

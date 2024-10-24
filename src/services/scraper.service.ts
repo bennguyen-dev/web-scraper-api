@@ -9,7 +9,6 @@ export async function getInfo({
 }: IGetInfo): Promise<IResponse<IGetInfoResponse | null>> {
   const startTime = process.hrtime();
   const urlWithProtocol = getUrlWithProtocol(url);
-  const host = new URL(urlWithProtocol).host;
 
   let page: Page | null = null;
 
@@ -27,7 +26,6 @@ export async function getInfo({
     await page.setRequestInterception(true);
 
     page.on("request", (req) => {
-      const resourceType = req.resourceType();
       if (
         req.url().includes("google-analytics") ||
         req.url().includes("doubleclick.net")
