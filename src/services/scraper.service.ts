@@ -139,7 +139,6 @@ export async function getInternalLinks({
     const origin = baseUrl.origin;
 
     const browser = await initBrowser();
-    const blocker = await getBlocker();
 
     page = await browser.newPage();
 
@@ -178,8 +177,6 @@ export async function getInternalLinks({
     await page.setUserAgent(
       "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.3",
     );
-
-    await blocker.enableBlockingInPage(page);
 
     const response = await page.goto(urlWithProtocol, {
       waitUntil: "domcontentloaded",
@@ -280,21 +277,21 @@ export async function getInternalLinks({
     const normalizedUrlsSet = new Set(
       paths.map((path) => normalizePath(origin, path)).filter(Boolean),
     );
-    normalizedUrlsSet.add(urlWithProtocol);
 
-    console.log("a 😋", { a: [...normalizedUrlsSet] }, "");
-
-    const normalizedUrls = [...normalizedUrlsSet]
+    const normalizedUrls = [urlWithProtocol, ...normalizedUrlsSet]
       .slice(0, limit)
       // Sort URLs
       .sort((a, b) => {
-        // Put homepage first
-        if (a === origin) return -1;
-        if (b === origin) return 1;
+        // Input URL always comes first
+        if (a === urlWithProtocol) return -1;
+        if (b === urlWithProtocol) return 1;
+
+        // Homepage (origin) comes second if it's not the input URL
+        if (a === origin && a !== urlWithProtocol) return -1;
+        if (b === origin && b !== urlWithProtocol) return 1;
+
         return a.length === b.length ? a.localeCompare(b) : a.length - b.length;
       });
-    const normalizedInputUrl = normalizePath(origin, urlWithProtocol);
-    normalizedUrls.unshift(normalizedInputUrl);
 
     const endTime = process.hrtime(startTime);
     console.log(

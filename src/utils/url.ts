@@ -13,11 +13,9 @@ export function isValidUrl(url: string): boolean {
     return false;
   }
 }
+
 export function normalizePath(baseUrl: string, pathname: string): string {
   try {
-    // Remove if pathname has protocol
-    pathname = new URL(getUrlWithProtocol(pathname), baseUrl).pathname;
-
     // Remove the query string
     pathname = pathname.split("?")[0];
 

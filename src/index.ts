@@ -22,7 +22,7 @@ app.get("/health", (req, res) => {
 // API routes
 app.post("/api/scrape-info", limiter, validateUrl, scrapeInfo);
 app.post(
-  "/api/scrape-interal-links",
+  "/api/scrape-internal-links",
   limiter,
   validateUrl,
   scrapeInternalLinks,
