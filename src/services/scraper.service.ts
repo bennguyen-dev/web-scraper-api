@@ -274,21 +274,26 @@ export async function getInternalLinks({
     );
 
     // Normalize paths and remove duplicates
-    const normalizedUrlsSet = new Set(
-      paths.map((path) => normalizePath(origin, path)).filter(Boolean),
+    const normalizedUrls = paths
+      .map((path) => normalizePath(origin, path))
+      .filter(Boolean);
+
+    const normalizeInputUrl = normalizePath(
+      origin,
+      new URL(urlWithProtocol).pathname,
     );
 
-    const normalizedUrls = [urlWithProtocol, ...normalizedUrlsSet]
+    const results = [...new Set([normalizeInputUrl, ...normalizedUrls])]
       .slice(0, limit)
       // Sort URLs
       .sort((a, b) => {
         // Input URL always comes first
-        if (a === urlWithProtocol) return -1;
-        if (b === urlWithProtocol) return 1;
+        if (a === normalizeInputUrl) return -1;
+        if (b === normalizeInputUrl) return 1;
 
         // Homepage (origin) comes second if it's not the input URL
-        if (a === origin && a !== urlWithProtocol) return -1;
-        if (b === origin && b !== urlWithProtocol) return 1;
+        if (a === origin && a !== normalizeInputUrl) return -1;
+        if (b === origin && b !== normalizeInputUrl) return 1;
 
         return a.length === b.length ? a.localeCompare(b) : a.length - b.length;
       });
@@ -302,7 +307,7 @@ export async function getInternalLinks({
       status: 200,
       message: "Internal links fetched successfully",
       data: {
-        links: normalizedUrls,
+        links: results,
       },
     };
   } catch (error) {
