@@ -4,7 +4,10 @@ import { config } from "./config/config";
 import { limiter } from "./middlewares/rateLimiter.middleware";
 import { validateUrl } from "./middlewares/validator.middleware";
 import { errorHandler } from "./middlewares/error.middleware";
-import { scrapeUrl } from "./controllers/scraper.controller";
+import {
+  scrapeInfo,
+  scrapeInternalLinks,
+} from "./controllers/scraper.controller";
 
 const app = express();
 
@@ -17,7 +20,13 @@ app.get("/health", (req, res) => {
 });
 
 // API routes
-app.post("/api/scrape", limiter, validateUrl, scrapeUrl);
+app.post("/api/scrape-info", limiter, validateUrl, scrapeInfo);
+app.post(
+  "/api/scrape-interal-links",
+  limiter,
+  validateUrl,
+  scrapeInternalLinks,
+);
 
 // Error handler
 app.use(errorHandler);

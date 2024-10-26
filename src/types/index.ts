@@ -1,3 +1,9 @@
+export interface IResponse<T> {
+  status: number;
+  message: string;
+  data: T;
+}
+
 export interface IGetInfo {
   url: string;
 }
@@ -10,8 +16,11 @@ export interface IGetInfoResponse {
   ogImage?: string;
 }
 
-export interface IResponse<T> {
-  status: number;
-  message: string;
-  data: T;
+export interface IGetInternalLinks {
+  url: string;
+  limit?: number;
+}
+
+export interface IGetInternalLinksResponse {
+  links: string[];
 }

@@ -1,7 +1,13 @@
 import { Page } from "puppeteer";
-import { IGetInfo, IGetInfoResponse, IResponse } from "../types";
+import {
+  IGetInfo,
+  IGetInfoResponse,
+  IGetInternalLinks,
+  IGetInternalLinksResponse,
+  IResponse,
+} from "../types";
 import { getBlocker, initBrowser } from "../utils/browser";
-import { getUrlWithProtocol } from "../utils/url";
+import { getUrlWithProtocol, normalizePath } from "../utils/url";
 import { config } from "../config/config";
 
 export async function getInfo({
@@ -43,12 +49,12 @@ export async function getInfo({
     await blocker.enableBlockingInPage(page);
 
     const response = await page.goto(urlWithProtocol, {
-      waitUntil: "networkidle0",
+      waitUntil: "networkidle2",
       timeout: config.pageTimeout,
     });
 
     if (!response || !response.ok()) {
-      throw new Error("Failed to load page");
+      throw new Error(`Failed to load page`);
     }
 
     const [title, description, ogImage, bodyContentExist] = await Promise.all([
@@ -67,7 +73,7 @@ export async function getInfo({
     ]);
 
     if (!bodyContentExist) {
-      throw new Error(`No body content found on page: ${url}`);
+      throw new Error(`No body content found on page`);
     }
 
     const screenshot = await page
@@ -78,7 +84,7 @@ export async function getInfo({
         type: "png",
       })
       .catch((err) => {
-        console.error("Error taking screenshot:", err);
+        console.error(`Error taking screenshot for ${url}:`, err);
         return undefined;
       });
 
@@ -90,7 +96,9 @@ export async function getInfo({
           : undefined;
 
     const endTime = process.hrtime(startTime);
-    console.log(`Execution time: ${endTime[0]}s ${endTime[1] / 1000000}ms`);
+    console.log(
+      `Execution time get info ${url}: ${endTime[0]}s ${endTime[1] / 1000000}ms`,
+    );
 
     return {
       status: 200,
@@ -104,7 +112,204 @@ export async function getInfo({
       },
     };
   } catch (error) {
-    console.error("Error generating page info:", error);
+    console.error(`Error getting info page ${url}:`, error);
+    return {
+      status: 500,
+      message: error instanceof Error ? error.message : "Internal Server Error",
+      data: null,
+    };
+  } finally {
+    if (page && !page.isClosed()) {
+      await page.close().catch(console.error);
+    }
+  }
+}
+
+export async function getInternalLinks({
+  url,
+  limit = 100,
+}: IGetInternalLinks): Promise<IResponse<IGetInternalLinksResponse | null>> {
+  const startTime = process.hrtime();
+  const urlWithProtocol = getUrlWithProtocol(url);
+  let page: Page | null = null;
+
+  try {
+    const baseUrl = new URL(urlWithProtocol);
+    const hostname = baseUrl.hostname;
+    const origin = baseUrl.origin;
+
+    const browser = await initBrowser();
+    const blocker = await getBlocker();
+
+    page = await browser.newPage();
+
+    if (!page) {
+      throw new Error("Failed to create new page");
+    }
+
+    // Performance optimizations
+    await Promise.all([
+      page.setCacheEnabled(false),
+      page.setRequestInterception(true),
+      page.setJavaScriptEnabled(true),
+    ]);
+
+    // Block unnecessary resources
+    page.on("request", (req) => {
+      const resourceType = req.resourceType();
+      const blockedTypes = ["image", "stylesheet", "font", "media"];
+      const blockedUrls = [
+        "google-analytics",
+        "doubleclick.net",
+        "facebook",
+        "twitter",
+      ];
+
+      if (
+        blockedTypes.includes(resourceType) ||
+        blockedUrls.some((url) => req.url().includes(url))
+      ) {
+        req.abort();
+      } else {
+        req.continue();
+      }
+    });
+
+    await page.setUserAgent(
+      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.3",
+    );
+
+    await blocker.enableBlockingInPage(page);
+
+    const response = await page.goto(urlWithProtocol, {
+      waitUntil: "domcontentloaded",
+      timeout: config.pageTimeout,
+    });
+
+    if (!response || !response.ok()) {
+      throw new Error(`Failed to load page`);
+    }
+
+    // Collect and filter links in the browser context
+    const paths = await page.evaluate(
+      (data: { hostname: string; origin: string }) => {
+        const uniquePaths = new Set<string>();
+        const links = Array.from(document.querySelectorAll("a[href]"));
+
+        const excludedExtensions = new Set([
+          ".pdf",
+          ".jpg",
+          ".jpeg",
+          ".png",
+          ".gif",
+          ".svg",
+          ".css",
+          ".js",
+          ".json",
+          ".xml",
+          ".txt",
+          ".doc",
+          ".docx",
+          ".zip",
+          ".rar",
+          ".mp3",
+          ".mp4",
+          ".wav",
+          ".avi",
+          ".mov",
+        ]);
+
+        const excludedPaths = new Set([
+          "/wp-admin",
+          "/wp-content",
+          "/wp-includes",
+          "/admin",
+          "/login",
+          "/logout",
+          "/signin",
+          "/signout",
+          "/cart",
+          "/checkout",
+          "/account",
+          "/dashboard",
+          "/assets",
+          "/static",
+          "/media",
+          "/uploads",
+        ]);
+
+        for (const link of links) {
+          const href = link.getAttribute("href");
+          if (!href) continue;
+
+          try {
+            // Handle relative and absolute URLs
+            const urlObj = href.startsWith("http")
+              ? new URL(href)
+              : new URL(href, data.origin);
+
+            // Skip if not same domain
+            if (urlObj.hostname !== data.hostname) continue;
+
+            // Skip if has query params or hash
+            if (urlObj.hash || urlObj.search) continue;
+
+            const pathname = urlObj.pathname.toLowerCase();
+
+            // Skip excluded extensions
+            if ([...excludedExtensions].some((ext) => pathname.endsWith(ext)))
+              continue;
+
+            // Skip excluded paths
+            if ([...excludedPaths].some((path) => pathname.startsWith(path)))
+              continue;
+
+            // Add pathname
+            uniquePaths.add(pathname || "/");
+          } catch (e) {
+            continue;
+          }
+        }
+
+        return Array.from(uniquePaths);
+      },
+      { hostname, origin },
+    );
+
+    // Normalize paths and remove duplicates
+    const normalizedUrlsSet = new Set(
+      paths.map((path) => normalizePath(origin, path)).filter(Boolean),
+    );
+    normalizedUrlsSet.add(urlWithProtocol);
+
+    console.log("a 😋", { a: [...normalizedUrlsSet] }, "");
+
+    const normalizedUrls = [...normalizedUrlsSet]
+      .slice(0, limit)
+      // Sort URLs
+      .sort((a, b) => {
+        // Put homepage first
+        if (a === origin) return -1;
+        if (b === origin) return 1;
+        return a.length === b.length ? a.localeCompare(b) : a.length - b.length;
+      });
+    const normalizedInputUrl = normalizePath(origin, urlWithProtocol);
+    normalizedUrls.unshift(normalizedInputUrl);
+
+    const endTime = process.hrtime(startTime);
+    console.log(
+      `Execution time get internal links ${url}: ${endTime[0]}s ${endTime[1] / 1000000}ms`,
+    );
+
+    return {
+      status: 200,
+      message: "Internal links fetched successfully",
+      data: {
+        links: normalizedUrls,
+      },
+    };
+  } catch (error) {
+    console.error(`Error getting internal links for ${url}:`, error);
     return {
       status: 500,
       message: error instanceof Error ? error.message : "Internal Server Error",
