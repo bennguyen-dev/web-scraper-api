@@ -24,6 +24,9 @@ export async function getBlocker(): Promise<PuppeteerBlocker> {
   if (!blocker) {
     blocker = await PuppeteerBlocker.fromLists(fetch, [
       "https://secure.fanboy.co.nz/fanboy-cookiemonster.txt",
+      "https://easylist.to/easylist/easylist.txt",
+      "https://easylist.to/easylist/fanboy-social.txt",
+      "https://raw.githubusercontent.com/StevenBlack/hosts/master/hosts",
     ]);
   }
   return blocker;

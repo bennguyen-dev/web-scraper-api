@@ -29,18 +29,6 @@ export async function getInfo({
     }
 
     await page.setCacheEnabled(false);
-    await page.setRequestInterception(true);
-
-    page.on("request", (req) => {
-      if (
-        req.url().includes("google-analytics") ||
-        req.url().includes("doubleclick.net")
-      ) {
-        req.abort();
-      } else {
-        req.continue();
-      }
-    });
 
     await page.setUserAgent(
       "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.3",
