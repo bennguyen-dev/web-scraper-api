@@ -22,9 +22,6 @@ export function normalizePath(baseUrl: string, pathname: string): string {
     // Remove trailing slashes and convert to lowercase
     let normalized = pathname.toLowerCase().replace(/\/$/, "");
 
-    // Remove common file extensions
-    normalized = normalized.replace(/\.(html?|php|asp|jsp)$/, "");
-
     // Remove common dynamic segments patterns
     const dynamicSegmentPatterns = [
       /:[a-zA-Z_]+/g, // :email, :id, etc

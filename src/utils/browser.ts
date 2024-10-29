@@ -1,6 +1,6 @@
 import puppeteer, { Browser } from "puppeteer";
-import { PuppeteerBlocker } from "@cliqz/adblocker-puppeteer";
 import { config } from "../config/config";
+import { PuppeteerBlocker } from "@ghostery/adblocker-puppeteer";
 
 let browserInstance: Browser | null = null;
 let blocker: PuppeteerBlocker | null = null;
@@ -22,7 +22,7 @@ export async function initBrowser(): Promise<Browser> {
 export async function getBlocker(): Promise<PuppeteerBlocker> {
   if (!blocker) {
     blocker = await PuppeteerBlocker.fromLists(fetch, [
-      "https://secure.fanboy.co.nz/fanboy-cookiemonster.txt",
+      "https://easylist.to/easylist/easylist.txt",
     ]);
   }
   return blocker;
