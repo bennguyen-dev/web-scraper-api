@@ -13,6 +13,7 @@ export async function initBrowser(): Promise<Browser> {
       defaultViewport: {
         width: 1440,
         height: 756,
+        deviceScaleFactor: 5 / 3,
       },
     });
   }
@@ -22,7 +23,7 @@ export async function initBrowser(): Promise<Browser> {
 export async function getBlocker(): Promise<PuppeteerBlocker> {
   if (!blocker) {
     blocker = await PuppeteerBlocker.fromLists(fetch, [
-      "https://easylist.to/easylist/easylist.txt",
+      "https://secure.fanboy.co.nz/fanboy-cookiemonster.txt",
     ]);
   }
   return blocker;
