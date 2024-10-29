@@ -76,6 +76,9 @@ export async function getInfo({
       throw new Error(`No body content found on page`);
     }
 
+    // wait 3 seconds for page to load content before taking screenshot
+    await new Promise((resolve) => setTimeout(resolve, 3000));
+
     const screenshot = await page
       .screenshot({
         optimizeForSpeed: true,
