@@ -1,4 +1,3 @@
-import { Page } from "puppeteer";
 import {
   IGetInfo,
   IGetInfoResponse,
@@ -9,6 +8,7 @@ import {
 import { getBlocker, initBrowser } from "../utils/browser";
 import { getUrlWithProtocol, normalizePath } from "../utils/url";
 import { config } from "../config/config";
+import { Page } from "@playwright/test";
 
 export async function getInfo({
   url,
@@ -19,25 +19,19 @@ export async function getInfo({
   let page: Page | null = null;
 
   try {
-    const browser = await initBrowser();
+    const context = await initBrowser();
     const blocker = await getBlocker();
 
-    page = await browser.newPage();
+    page = await context.newPage();
 
     if (!page) {
       throw new Error("Failed to create new page");
     }
 
-    await page.setCacheEnabled(false);
-
-    await page.setUserAgent(
-      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.3",
-    );
-
     await blocker.enableBlockingInPage(page);
 
     const response = await page.goto(urlWithProtocol, {
-      waitUntil: "networkidle2",
+      waitUntil: "load",
       timeout: config.pageTimeout,
     });
 
@@ -69,9 +63,8 @@ export async function getInfo({
 
     const screenshot = await page
       .screenshot({
-        optimizeForSpeed: true,
         fullPage: false,
-        encoding: "binary",
+        animations: "disabled",
         type: "png",
       })
       .catch((err) => {
@@ -129,24 +122,16 @@ export async function getInternalLinks({
     const hostname = baseUrl.hostname;
     const origin = baseUrl.origin;
 
-    const browser = await initBrowser();
+    const context = await initBrowser();
 
-    page = await browser.newPage();
+    page = await context.newPage();
 
     if (!page) {
       throw new Error("Failed to create new page");
     }
 
-    // Performance optimizations
-    await Promise.all([
-      page.setCacheEnabled(false),
-      page.setRequestInterception(true),
-      page.setJavaScriptEnabled(true),
-    ]);
-
     // Block unnecessary resources
-    page.on("request", (req) => {
-      const resourceType = req.resourceType();
+    await context.route("**/*", (route) => {
       const blockedTypes = ["image", "stylesheet", "font", "media"];
       const blockedUrls = [
         "google-analytics",
@@ -155,21 +140,18 @@ export async function getInternalLinks({
         "twitter",
       ];
 
+      const request = route.request();
       if (
-        blockedTypes.includes(resourceType) ||
-        blockedUrls.some((url) => req.url().includes(url))
+        blockedTypes.includes(request.resourceType()) ||
+        blockedUrls.some((url) => request.url().includes(url))
       ) {
-        req.abort();
+        route.abort();
       } else {
-        req.continue();
+        route.continue();
       }
     });
 
-    await page.setUserAgent(
-      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.3",
-    );
-
-    const response = await page.goto(urlWithProtocol, {
+    const response = await page.goto(origin, {
       waitUntil: "domcontentloaded",
       timeout: config.pageTimeout,
     });
