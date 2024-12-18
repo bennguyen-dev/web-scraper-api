@@ -20,7 +20,7 @@ export async function initBrowser(): Promise<BrowserContext> {
         width: 1440,
         height: 756,
       },
-      deviceScaleFactor: 5 / 3,
+      deviceScaleFactor: 5 / 6,
       userAgent: config.userAgent,
     });
   }
