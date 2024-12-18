@@ -8,6 +8,7 @@ import {
   scrapeInfo,
   scrapeInternalLinks,
 } from "./controllers/scraper.controller";
+import { addImageFrame } from "./controllers/image.controller";
 
 const app = express();
 
@@ -27,6 +28,7 @@ app.post(
   validateUrl,
   scrapeInternalLinks,
 );
+app.post("/api/add-image-frame", limiter, addImageFrame);
 
 // Error handler
 app.use(errorHandler);
