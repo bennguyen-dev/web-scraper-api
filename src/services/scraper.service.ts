@@ -9,6 +9,7 @@ import { getBlocker, initBrowser } from "../utils/browser";
 import { getUrlWithProtocol, normalizePath } from "../utils/url";
 import { config } from "../config/config";
 import { Page } from "@playwright/test";
+import { Response as PlaywrightResponse } from "playwright";
 
 export async function getInfo({
   url,
@@ -17,6 +18,12 @@ export async function getInfo({
   const urlWithProtocol = getUrlWithProtocol(url);
 
   let page: Page | null = null;
+  const controller = new AbortController();
+
+  // Setup timeout
+  const timeoutId = setTimeout(() => {
+    controller.abort("Operation timed out after 45 seconds");
+  }, config.functionTimeout);
 
   try {
     const context = await initBrowser();
@@ -30,10 +37,17 @@ export async function getInfo({
 
     await blocker.enableBlockingInPage(page);
 
-    const response = await page.goto(urlWithProtocol, {
-      waitUntil: "load",
-      timeout: config.pageTimeout,
-    });
+    const response = (await Promise.race([
+      page.goto(urlWithProtocol, {
+        waitUntil: "load",
+        timeout: config.pageTimeout,
+      }),
+      new Promise((_, reject) => {
+        controller.signal.addEventListener("abort", () =>
+          reject(new Error(controller.signal.reason)),
+        );
+      }),
+    ])) as PlaywrightResponse | null; // Add type assertion here
 
     if (!response || !response.ok()) {
       throw new Error(`Failed to load page`);
@@ -59,18 +73,30 @@ export async function getInfo({
     }
 
     // wait 3 seconds for page to load content before taking screenshot
-    await new Promise((resolve) => setTimeout(resolve, 3000));
+    await Promise.race([
+      new Promise((resolve) => setTimeout(resolve, 3000)),
+      new Promise((_, reject) => {
+        controller.signal.addEventListener("abort", () =>
+          reject(new Error(controller.signal.reason)),
+        );
+      }),
+    ]);
 
-    const screenshot = await page
-      .screenshot({
+    const screenshot = await Promise.race([
+      page.screenshot({
         fullPage: false,
         animations: "disabled",
         type: "png",
-      })
-      .catch((err) => {
-        console.error(`Error taking screenshot for ${url}:`, err);
-        return undefined;
-      });
+      }),
+      new Promise((_, reject) => {
+        controller.signal.addEventListener("abort", () =>
+          reject(new Error(controller.signal.reason)),
+        );
+      }),
+    ]).catch((err) => {
+      console.error(`Error taking screenshot for ${url}:`, err);
+      return undefined;
+    });
 
     const absoluteOgImage =
       ogImage && ogImage.startsWith("http")
@@ -89,7 +115,7 @@ export async function getInfo({
       message: "Info fetched successfully",
       data: {
         url: urlWithProtocol,
-        screenshot: screenshot ? Buffer.from(screenshot) : undefined,
+        screenshot: screenshot ? Buffer.from(screenshot as Buffer) : undefined,
         title,
         description: description || undefined,
         ogImage: absoluteOgImage,
@@ -98,11 +124,15 @@ export async function getInfo({
   } catch (error) {
     console.error(`Error getting info page ${url}:`, error);
     return {
-      status: 500,
+      status:
+        error instanceof Error && error.message.includes("timed out")
+          ? 408
+          : 500,
       message: error instanceof Error ? error.message : "Internal Server Error",
       data: null,
     };
   } finally {
+    clearTimeout(timeoutId);
     if (page && !page.isClosed()) {
       await page.close().catch(console.error);
     }
