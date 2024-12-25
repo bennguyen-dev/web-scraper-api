@@ -2,7 +2,7 @@ import { Request, Response, NextFunction } from "express";
 import { isValidUrl } from "../utils/url";
 
 export function validateUrl(req: Request, res: Response, next: NextFunction) {
-  const { url } = req.body;
+  const url = req.query?.url as string;
 
   if (!url) {
     return res.status(400).json({

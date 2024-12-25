@@ -20,8 +20,8 @@ app.get("/health", (req, res) => {
 });
 
 // API routes
-app.post("/api/scrape-info", limiter, validateUrl, scrapeInfo);
-app.post(
+app.get("/api/scrape-info", limiter, validateUrl, scrapeInfo);
+app.get(
   "/api/scrape-internal-links",
   limiter,
   validateUrl,

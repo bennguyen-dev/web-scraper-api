@@ -47,7 +47,15 @@ export async function getInfo({
           reject(new Error(controller.signal.reason)),
         );
       }),
-    ])) as PlaywrightResponse | null; // Add type assertion here
+    ])) as PlaywrightResponse | null;
+
+    if (!response || response.status() === 404) {
+      return {
+        status: 404,
+        message: "Page not found",
+        data: null,
+      };
+    }
 
     if (!response || !response.ok()) {
       throw new Error(`Failed to load page`);
@@ -185,6 +193,14 @@ export async function getInternalLinks({
       waitUntil: "domcontentloaded",
       timeout: config.pageTimeout,
     });
+
+    if (!response || response.status() === 404) {
+      return {
+        status: 404,
+        message: "Page not found",
+        data: null,
+      };
+    }
 
     if (!response || !response.ok()) {
       throw new Error(`Failed to load page`);
