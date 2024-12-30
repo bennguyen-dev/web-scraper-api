@@ -14,6 +14,7 @@ export interface IGetInfoResponse {
   title?: string;
   description?: string;
   ogImage?: string;
+  logo?: string;
 }
 
 export interface IGetInternalLinks {

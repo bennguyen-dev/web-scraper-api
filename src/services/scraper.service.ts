@@ -5,7 +5,7 @@ import {
   IGetInternalLinksResponse,
   IResponse,
 } from "../types";
-import { getBlocker, initBrowser } from "../utils/browser";
+import { checkErrorPage, getBlocker, initBrowser } from "../utils/browser";
 import { getUrlWithProtocol, normalizePath } from "../utils/url";
 import { config } from "../config/config";
 import { Page } from "@playwright/test";
@@ -49,45 +49,100 @@ export async function getInfo({
       }),
     ])) as PlaywrightResponse | null;
 
-    if (!response || response.status() === 404) {
+    await page.waitForTimeout(2000);
+
+    const checkErrorResult = await checkErrorPage(page, response);
+
+    if (checkErrorResult.hasError) {
       return {
-        status: 404,
-        message: "Page not found",
+        status: 400,
+        message: checkErrorResult.message,
         data: null,
       };
     }
 
-    if (!response || !response.ok()) {
-      throw new Error(`Failed to load page`);
-    }
+    const { title, description, ogImage, logo } = await page.evaluate(() => {
+      const getMeta = (name: string) =>
+        document.querySelector(`meta[name="${name}"]`)?.getAttribute("content");
+      const getOgMeta = (property: string) =>
+        document
+          .querySelector(`meta[property="${property}"]`)
+          ?.getAttribute("content");
 
-    const [title, description, ogImage, bodyContentExist] = await Promise.all([
-      page.title().catch(() => undefined),
-      page
-        .$eval('meta[name="description"]', (el) => el.getAttribute("content"))
-        .catch(() => undefined),
-      page
-        .$eval('meta[property="og:image"]', (el) => el.getAttribute("content"))
-        .catch(() => undefined),
-      page
-        .evaluate(
-          () => document.body && document.body.innerHTML.trim().length > 0,
-        )
-        .catch(() => undefined),
-    ]);
+      // Find logo using common patterns
+      const findLogo = () => {
+        // Common logo selectors
+        const logoSelectors = [
+          'link[rel="icon"]',
+          'link[rel="shortcut icon"]',
+          'link[rel="apple-touch-icon"]',
+          'meta[property="og:image"]',
+          'img[src*="logo"]',
+          ".logo img",
+          "#logo img",
+          "header img",
+          '[class*="logo"] img',
+          '[id*="logo"] img',
+          'a[class*="logo"] img',
+          'a[id*="logo"] img',
+        ];
 
-    if (!bodyContentExist) {
-      throw new Error(`No body content found on page`);
-    }
+        // Try each selector
+        for (const selector of logoSelectors) {
+          const element = document.querySelector(selector);
+          if (element) {
+            if (
+              element.tagName.toLowerCase() === "link" ||
+              element.tagName.toLowerCase() === "meta"
+            ) {
+              const href =
+                element.getAttribute("href") || element.getAttribute("content");
+              if (href) return href;
+            } else if (element.tagName.toLowerCase() === "img") {
+              const src = element.getAttribute("src");
+              if (src) return src;
+            }
+          }
+        }
+        return undefined;
+      };
 
-    // wait 3 seconds for page to load content before taking screenshot
+      return {
+        title: document.title,
+        description: getMeta("description"),
+        ogImage: getOgMeta("og:image"),
+        logo: findLogo(),
+      };
+    });
+
+    // Wait for visible images to load with a 3-second timeout
     await Promise.race([
-      new Promise((resolve) => setTimeout(resolve, 3000)),
-      new Promise((_, reject) => {
-        controller.signal.addEventListener("abort", () =>
-          reject(new Error(controller.signal.reason)),
+      page.evaluate((browserViewport) => {
+        return Promise.all(
+          Array.from(document.images)
+            .filter((img) => {
+              // Check if image is in viewport
+              const rect = img.getBoundingClientRect();
+              const viewportHeight = browserViewport.height;
+              const viewportWidth = browserViewport.width;
+
+              return (
+                !img.complete &&
+                rect.top >= 0 &&
+                rect.left >= 0 &&
+                rect.bottom <= viewportHeight &&
+                rect.right <= viewportWidth
+              );
+            })
+            .map(
+              (img) =>
+                new Promise((resolve) => {
+                  img.onload = img.onerror = resolve;
+                }),
+            ),
         );
-      }),
+      }, config.browserViewport),
+      new Promise((resolve) => setTimeout(resolve, 3000)), // 3-second timeout
     ]);
 
     const screenshot = await Promise.race([
@@ -113,6 +168,13 @@ export async function getInfo({
           ? new URL(ogImage, urlWithProtocol).href
           : undefined;
 
+    const absoluteLogo =
+      logo && logo.startsWith("http")
+        ? logo
+        : logo
+          ? new URL(logo, urlWithProtocol).href
+          : undefined;
+
     const endTime = process.hrtime(startTime);
     console.log(
       `Execution time get info ${url}: ${endTime[0]}s ${endTime[1] / 1000000}ms`,
@@ -127,6 +189,7 @@ export async function getInfo({
         title,
         description: description || undefined,
         ogImage: absoluteOgImage,
+        logo: absoluteLogo,
       },
     };
   } catch (error) {
