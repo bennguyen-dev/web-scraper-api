@@ -65,7 +65,7 @@ export const checkErrorPage = async (
     if (!response || !response.ok()) {
       const status = response?.status() || "N/A";
       const url = page.url();
-      console.log(
+      console.error(
         `[Error] Failed to load page. Status: ${status}, URL: ${url}`,
       );
       return {
@@ -78,7 +78,7 @@ export const checkErrorPage = async (
     if (response && errorStatusCodes.includes(response.status())) {
       const status = response.status();
       const url = page.url();
-      console.log(`[Error] HTTP error ${status} detected. URL: ${url}`);
+      console.error(`[Error] HTTP error ${status} detected. URL: ${url}`);
       return {
         hasError: true,
         message: `Server error occurred (HTTP ${status})`,
@@ -106,7 +106,7 @@ export const checkErrorPage = async (
     );
     if (errorKeyword) {
       const url = page.url();
-      console.log(
+      console.error(
         `[Error] Error keyword "${errorKeyword}" found in URL: ${url}`,
       );
       return {
@@ -135,8 +135,8 @@ export const checkErrorPage = async (
         "unavailable",
         "invalid",
       ];
-      const foundErrorTerm = errorTerms.find(
-        (term) => bodyText.includes(term) || metaDescription.includes(term),
+      const foundErrorTerm = errorTerms.find((term) =>
+        metaDescription.includes(term),
       );
 
       return {
@@ -150,7 +150,7 @@ export const checkErrorPage = async (
 
     if (contentCheck.isEmpty) {
       const url = page.url();
-      console.log(
+      console.error(
         `[Error] Empty page detected. Content length: ${contentCheck.contentLength}, Images: ${contentCheck.imageCount}. URL: ${url}`,
       );
       return {
@@ -161,7 +161,7 @@ export const checkErrorPage = async (
 
     if (contentCheck.hasErrorTerms) {
       const url = page.url();
-      console.log(
+      console.error(
         `[Error] Error term "${contentCheck.foundErrorTerm}" found in content. URL: ${url}`,
       );
       return {
